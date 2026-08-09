@@ -641,7 +641,54 @@
       els[id].addEventListener('change', render);
     });
 
-    // Read the chosen image into a data URL, then re-render once it's ready.
+    /* Album art is recompressed to JPEG before it goes into the page. A square
+       PNG straight out of an art tool runs 1.5-3 MB; the same picture as JPEG
+       is nearer 200 KB, and it is only ever displayed about 370px wide. Very
+       large originals are capped, otherwise resolution is left alone. */
+    var ART_MAX_PX = 1600;
+    var ART_QUALITY = 0.88;
+
+    function readableSize(dataUrl) {
+      var b64 = String(dataUrl).split(',')[1] || '';
+      var bytes = Math.round(b64.length * 3 / 4);
+      return bytes > 1048576
+        ? (bytes / 1048576).toFixed(1) + ' MB'
+        : Math.round(bytes / 1024) + ' KB';
+    }
+
+    /* Hands back a JPEG data URL, or the untouched original if anything about
+       the conversion fails, so a stubborn file still produces a page. */
+    function compressArt(file, done) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var original = reader.result;
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth, h = img.naturalHeight;
+            var scale = Math.min(1, ART_MAX_PX / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale));
+            var ch = Math.max(1, Math.round(h * scale));
+            var canvas = document.createElement('canvas');
+            canvas.width = cw;
+            canvas.height = ch;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';        // JPEG carries no transparency
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var out = canvas.toDataURL('image/jpeg', ART_QUALITY);
+            done(out.length < original.length ? out : original, original);
+          } catch (e) {
+            done(original, original);
+          }
+        };
+        img.onerror = function () { done(original, original); };
+        img.src = original;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Read the chosen image, shrink it, then re-render once it's ready.
     artInput.addEventListener('change', function () {
       var file = artInput.files && artInput.files[0];
       if (!file) {
@@ -650,13 +697,16 @@
         render();
         return;
       }
-      var reader = new FileReader();
-      reader.onload = function () {
-        artDataUrl = reader.result;
-        artNameEl.textContent = 'Embedded: ' + file.name;
+      artNameEl.textContent = 'Preparing ' + file.name + '\u2026';
+      compressArt(file, function (result, original) {
+        artDataUrl = result;
+        var note = 'Embedded: ' + file.name + ' \u00b7 ' + readableSize(result);
+        if (result !== original) {
+          note += ' (was ' + readableSize(original) + ')';
+        }
+        artNameEl.textContent = note;
         render();
-      };
-      reader.readAsDataURL(file);
+      });
     });
 
     // Optional PDF / MP3 — embedded as data URLs for the downloads section.
