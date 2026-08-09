@@ -139,6 +139,23 @@
 
     .optional { color: var(--brass); font-size: 0.78rem; font-weight: 500; }
 
+    /* Small inline action inside a hint line (e.g. "Remove them"). */
+    .btn-inline {
+      font-family: inherit;
+      font-style: normal;
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.18rem 0.55rem;
+      background: var(--brass);
+      color: var(--paper);
+      border: 1px solid var(--brass);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-inline:hover { background: var(--ink); border-color: var(--ink); transform: none; }
+
     /* ---- Buttons ---- */
     .actions {
       position: sticky;
@@ -283,6 +300,7 @@
         <label for="lyrics">Lyrics <span class="optional">· optional</span></label>
         <span class="hint">One line per line. Blank line between stanzas. Leave empty to omit the lyrics section entirely.</span>
         <textarea id="lyrics" rows="8" placeholder="First line of the first stanza&#10;Second line&#10;&#10;First line of the second stanza&#10;Second line"></textarea>
+        <span class="hint" id="lyricsWarn" style="font-style: normal; color: var(--brass);"></span>
       </div>
 
       <div class="field">
@@ -359,6 +377,25 @@
       if (m) return m[1];
       m = s.match(/[A-Za-z0-9_-]{11}/);                       // last-resort token
       return m ? m[0] : '';
+    }
+
+    /* Section labels and studio directions belong in the writing process,
+       not on the client's page. Anything wholly in brackets counts, as does a
+       bare or letter-spaced header like 'CHORUS' or 'V e r s e 1'. */
+    var SCAFFOLD = /^(verse|chorus|prechorus|pre-chorus|bridge|intro|outro|tag|build|refrain|hook|finalchorus|spoken|instrumental)\d*$/;
+    function isScaffoldLine(line) {
+      var t = String(line).trim();
+      if (!t) return false;
+      if (t.charAt(0) === '[') return true;
+      return SCAFFOLD.test(t.replace(/[\s.\u2026:_-]+/g, '').toLowerCase());
+    }
+    function scaffoldLines(text) {
+      return String(text).replace(/\r\n/g, '\n').split('\n').filter(isScaffoldLine);
+    }
+    function stripScaffold(text) {
+      var kept = String(text).replace(/\r\n/g, '\n').split('\n')
+        .filter(function (l) { return !isScaffoldLine(l); });
+      return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     /* Story body -> <p> paragraphs (blank line = new paragraph;
@@ -553,7 +590,40 @@
       previewFrame.srcdoc = html;
       filenameEl.textContent = currentFilename();
       updateYtInfo();
+      updateLyricsWarn();
       return html;
+    }
+
+    // Flags production labels still sitting in the lyrics, with a one-click fix.
+    // The text node and button are built once and then only updated: rebuilding
+    // them on every render would destroy the button underneath a click, since
+    // clicking it blurs the textarea and triggers a render first.
+    var lyricsWarnEl = document.getElementById('lyricsWarn');
+    var lyricsWarnText = document.createTextNode('');
+    var lyricsWarnBtn = document.createElement('button');
+    lyricsWarnBtn.type = 'button';
+    lyricsWarnBtn.className = 'btn-inline';
+    lyricsWarnBtn.textContent = 'Remove them';
+    lyricsWarnBtn.style.display = 'none';
+    lyricsWarnBtn.addEventListener('click', function () {
+      els.lyrics.value = stripScaffold(els.lyrics.value);
+      render();
+    });
+    lyricsWarnEl.appendChild(lyricsWarnText);
+    lyricsWarnEl.appendChild(lyricsWarnBtn);
+
+    function updateLyricsWarn() {
+      var bad = scaffoldLines(els.lyrics.value);
+      if (!bad.length) {
+        lyricsWarnText.data = '';
+        lyricsWarnBtn.style.display = 'none';
+        return;
+      }
+      var shown = bad.slice(0, 4).join(', ') + (bad.length > 4 ? '\u2026' : '');
+      lyricsWarnText.data = bad.length +
+        (bad.length === 1 ? ' production label' : ' production labels') +
+        ' will show on the keepsake page: ' + shown + '  ';
+      lyricsWarnBtn.style.display = 'inline-block';
     }
 
     var ytInfoEl = document.getElementById('ytInfo');
@@ -571,7 +641,54 @@
       els[id].addEventListener('change', render);
     });
 
-    // Read the chosen image into a data URL, then re-render once it's ready.
+    /* Album art is recompressed to JPEG before it goes into the page. A square
+       PNG straight out of an art tool runs 1.5-3 MB; the same picture as JPEG
+       is nearer 200 KB, and it is only ever displayed about 370px wide. Very
+       large originals are capped, otherwise resolution is left alone. */
+    var ART_MAX_PX = 1600;
+    var ART_QUALITY = 0.88;
+
+    function readableSize(dataUrl) {
+      var b64 = String(dataUrl).split(',')[1] || '';
+      var bytes = Math.round(b64.length * 3 / 4);
+      return bytes > 1048576
+        ? (bytes / 1048576).toFixed(1) + ' MB'
+        : Math.round(bytes / 1024) + ' KB';
+    }
+
+    /* Hands back a JPEG data URL, or the untouched original if anything about
+       the conversion fails, so a stubborn file still produces a page. */
+    function compressArt(file, done) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var original = reader.result;
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth, h = img.naturalHeight;
+            var scale = Math.min(1, ART_MAX_PX / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale));
+            var ch = Math.max(1, Math.round(h * scale));
+            var canvas = document.createElement('canvas');
+            canvas.width = cw;
+            canvas.height = ch;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';        // JPEG carries no transparency
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var out = canvas.toDataURL('image/jpeg', ART_QUALITY);
+            done(out.length < original.length ? out : original, original);
+          } catch (e) {
+            done(original, original);
+          }
+        };
+        img.onerror = function () { done(original, original); };
+        img.src = original;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Read the chosen image, shrink it, then re-render once it's ready.
     artInput.addEventListener('change', function () {
       var file = artInput.files && artInput.files[0];
       if (!file) {
@@ -580,13 +697,16 @@
         render();
         return;
       }
-      var reader = new FileReader();
-      reader.onload = function () {
-        artDataUrl = reader.result;
-        artNameEl.textContent = 'Embedded: ' + file.name;
+      artNameEl.textContent = 'Preparing ' + file.name + '\u2026';
+      compressArt(file, function (result, original) {
+        artDataUrl = result;
+        var note = 'Embedded: ' + file.name + ' \u00b7 ' + readableSize(result);
+        if (result !== original) {
+          note += ' (was ' + readableSize(original) + ')';
+        }
+        artNameEl.textContent = note;
         render();
-      };
-      reader.readAsDataURL(file);
+      });
     });
 
     // Optional PDF / MP3 — embedded as data URLs for the downloads section.
