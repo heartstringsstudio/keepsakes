@@ -27,17 +27,17 @@ keepsakes/<page-code>/song.mp3     the song (under 15 MB; 192 kbps is plenty)
    folder name, `keepsakes/<page-code>/`.
 5. **Make that folder in this repo** and drop all three files into it. The
    names must stay exactly `index.html`, `art.jpg`, `song.mp3`.
-6. **Check it**:
+6. **Publish**: on GitHub, **Add file → Upload files**, drag the whole folder
+   in, and commit. The page is live at
+   `https://heartstringsstudio.github.io/keepsakes/<page-code>/` a minute or
+   two later.
 
-   ```sh
-   python3 tools/check_keepsakes.py
-   ```
-
-   It stops you if `song.mp3` or `art.jpg` is missing or a video file snuck
-   in, warns if the MP3 is over 15 MB, and reports how full the site is.
-7. **Publish**: commit and push (or upload the folder on GitHub). The page is
-   live at `https://heartstringsstudio.github.io/keepsakes/<page-code>/` a
-   minute or two later.
+That's all. Every upload is checked automatically (the "Check keepsakes"
+workflow in `.github/workflows/`). If a page is missing `song.mp3` or
+`art.jpg`, a video file got in, a song is over 15 MB, or the site has passed
+800 MB, the check fails and GitHub emails you. It doesn't block publishing;
+it tells you what to fix. To run the same check by hand:
+`python3 tools/check_keepsakes.py`.
 
 Videos never go in this repo, ever. `.gitignore` skips `.mp4`/`.mov` files
 and the check script refuses them; put the video on Google Drive and use the
@@ -45,8 +45,8 @@ share link.
 
 ### The size limit
 
-GitHub Pages sites cap at **1 GB**. `check_keepsakes.py` prints the site's
-size every run and warns past **800 MB**. When it does, start a second
+GitHub Pages sites cap at **1 GB**. The automatic check reports the site's
+size on every upload and emails you once it passes **800 MB**. When it does, start a second
 keepsakes repo for new songs. Older pages stay where they are, links and all.
 A song at 192 kbps is about 5–8 MB, so that's roughly 100 more songs from here.
 

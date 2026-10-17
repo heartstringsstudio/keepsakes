@@ -2,6 +2,7 @@
 """Check the keepsakes repo before publishing.
 
     python3 tools/check_keepsakes.py
+    python3 tools/check_keepsakes.py --strict   # warnings fail too (used on GitHub)
 
 Checks every keepsake folder built in the audio-first layout (the page plays
 song.mp3 from its own folder):
@@ -61,7 +62,8 @@ def mb(n):
     return "%.1f MB" % (n / MB)
 
 
-def main():
+def main(argv):
+    strict = "--strict" in argv
     errors, warnings = [], []
 
     pages = sorted(d for d in os.listdir(ROOT)
@@ -114,6 +116,8 @@ def main():
         print("\nWarnings")
         for w in warnings:
             print("  ! " + w)
+    if strict and warnings:
+        errors.extend(warnings)
     if errors:
         print("\nNot ready to publish")
         for e in errors:
@@ -124,4 +128,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
