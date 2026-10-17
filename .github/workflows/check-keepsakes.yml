@@ -1,0 +1,18 @@
+# Runs tools/check_keepsakes.py on every upload. If a page is missing
+# song.mp3 or art.jpg, a video file got in, a song is over 15 MB, or the
+# site has passed 800 MB, the run fails and GitHub emails whoever pushed.
+# It doesn't stop the page publishing; it tells you something needs fixing.
+name: Check keepsakes
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check songs, art, videos and site size
+        run: python3 tools/check_keepsakes.py --strict

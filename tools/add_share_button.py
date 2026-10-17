@@ -311,6 +311,13 @@ def build(slug, check_only):
     index_path = os.path.join(ROOT, slug, "index.html")
     original = open(index_path, encoding="utf-8").read()
 
+    # Audio-first pages come out of the builder with the share button already
+    # on them, wired to keep the player for guests; this script's block would
+    # hide it. Leave them be.
+    if re.search(r'<audio[^>]*\bsrc="song\.mp3"', original):
+        print("%-32s %-24s %s" % (slug, "audio-first layout", "left as built"))
+        return False
+
     title = song_title(original)
     prepared = ensure_link_preview(original, slug)
     has_downloads = 'aria-labelledby="downloads-heading">' in prepared
