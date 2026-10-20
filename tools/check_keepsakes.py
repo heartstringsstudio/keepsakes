@@ -10,11 +10,13 @@ song.mp3 from its own folder):
 - song.mp3 must be there                            -> ERROR, exits 1
 - art.jpg must be there                             -> ERROR, exits 1
 - song.mp3 over 15 MB                               -> warning: re-export at 192 kbps
+- page links video.mp4 but the file isn't there     -> ERROR, exits 1
+- video.mp4 over 25 MB                              -> warning: re-export at 720p
+  (GitHub's Upload files page won't take a bigger file)
 
 And the repo as a whole:
 
-- any .mp4 video file                               -> ERROR, exits 1
-  (videos go on Google Drive and get linked as VIDEO_LINK, never committed)
+- any video that isn't a page's own video.mp4      -> ERROR, exits 1
 - total size of the published site, and of git history
 - over 800 MB published                             -> warning: start a second keepsakes repo
   (GitHub Pages sites cap at 1 GB)
@@ -32,12 +34,15 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 MB = 1024 * 1024
 MP3_WARN = 15 * MB
+VIDEO_WARN = 25 * MB
 SITE_WARN = 800 * MB
 SITE_CAP = 1024 * MB
 VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mov")
 
 # The audio-first page plays the song from its own folder.
 AUDIO_FIRST = re.compile(r'<audio[^>]*\bsrc="song\.mp3"')
+# ...and, on a keepsake delivery, the share video beside it.
+LINKS_VIDEO = re.compile(r'href="video\.mp4"')
 
 
 def published_files():
@@ -68,6 +73,7 @@ def main(argv):
 
     pages = sorted(d for d in os.listdir(ROOT)
                    if os.path.isfile(os.path.join(ROOT, d, "index.html")))
+    page_videos = set()
     print("Keepsake pages")
     for slug in pages:
         folder = os.path.join(ROOT, slug)
@@ -88,6 +94,18 @@ def main(argv):
             if size > MP3_WARN:
                 warnings.append("%s/song.mp3 is %s, over 15 MB. Re-export it at 192 kbps "
                                 "and replace the file." % (slug, mb(size)))
+        video = os.path.join(folder, "video.mp4")
+        if os.path.isfile(video):
+            page_videos.add(video)
+            size = os.path.getsize(video)
+            notes.append("video.mp4 " + mb(size))
+            if size > VIDEO_WARN:
+                warnings.append("%s/video.mp4 is %s, over 25 MB. Re-export it at 720p "
+                                "and replace the file." % (slug, mb(size)))
+        elif LINKS_VIDEO.search(page):
+            errors.append("%s/ is missing video.mp4. Drop the share video in that folder, "
+                          "named exactly video.mp4." % slug)
+            notes.append("MISSING video.mp4")
         if not os.path.isfile(os.path.join(folder, "art.jpg")):
             errors.append("%s/ is missing art.jpg. Drop the album art in that folder, "
                           "named exactly art.jpg." % slug)
@@ -97,10 +115,10 @@ def main(argv):
     total = 0
     for path in published_files():
         total += os.path.getsize(path)
-        if path.lower().endswith(VIDEO_EXTENSIONS):
-            errors.append("%s is a video file. Videos don't go in this repo: delete it, "
-                          "put the video on Google Drive and use its share link as "
-                          "VIDEO_LINK." % os.path.relpath(path, ROOT))
+        if path.lower().endswith(VIDEO_EXTENSIONS) and path not in page_videos:
+            errors.append("%s is a stray video. The only video a page uses is the "
+                          "video.mp4 in its own folder: rename or delete this one."
+                          % os.path.relpath(path, ROOT))
 
     print("\nSize")
     print("  Published site: %s of the 1 GB GitHub Pages limit (%d%%)"

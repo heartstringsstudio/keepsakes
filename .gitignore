@@ -1,7 +1,8 @@
-# Videos never go in this repo: put them on Google Drive and use the share
-# link as the page's VIDEO_LINK. tools/check_keepsakes.py also refuses them.
+# The only video a page uses is its own video.mp4 (the share video, under
+# 25 MB). Anything else is a stray export; tools/check_keepsakes.py refuses it.
 *.mp4
 *.MP4
 *.m4v
 *.mov
 *.MOV
+!*/video.mp4

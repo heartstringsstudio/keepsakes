@@ -1,6 +1,6 @@
 # Runs tools/check_keepsakes.py on every upload. If a page is missing
-# song.mp3 or art.jpg, a video file got in, a song is over 15 MB, or the
-# site has passed 800 MB, the run fails and GitHub emails whoever pushed.
+# song.mp3, art.jpg or the video.mp4 it links, a stray video got in, a song
+# is over 15 MB, a video is over 25 MB, or the site has passed 800 MB, the run fails and GitHub emails whoever pushed.
 # It doesn't stop the page publishing; it tells you something needs fixing.
 name: Check keepsakes
 
