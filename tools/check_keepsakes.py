@@ -11,6 +11,12 @@ song.mp3 from its own folder):
 - art.jpg must be there                             -> ERROR, exits 1
 - song.mp3 over 15 MB                               -> warning: re-export at 192 kbps
 
+Every page, old or new layout:
+
+- links back to its own keepsakes/<folder>/ address -> ERROR, exits 1
+  (the Share button and Facebook preview use them; a page built under one
+  page code but uploaded to a differently named folder shares a 404)
+
 And the repo as a whole:
 
 - any .mp4 video file                               -> ERROR, exits 1
@@ -38,6 +44,9 @@ VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mov")
 
 # The audio-first page plays the song from its own folder.
 AUDIO_FIRST = re.compile(r'<audio[^>]*\bsrc="song\.mp3"')
+
+# Absolute links a page makes to keepsake folders (share link, og:image...).
+SELF_LINK = re.compile(r'heartstringsstudio\.github\.io/keepsakes/([^/"\'?#\s<>]+)/')
 
 
 def published_files():
@@ -72,6 +81,13 @@ def main(argv):
     for slug in pages:
         folder = os.path.join(ROOT, slug)
         page = open(os.path.join(folder, "index.html"), encoding="utf-8").read()
+        wrong = sorted(set(m for m in SELF_LINK.findall(page)
+                           if m != slug and not os.path.isdir(os.path.join(ROOT, m))))
+        if wrong:
+            errors.append("%s/index.html links to keepsakes/%s/, which doesn't exist, so "
+                          "Share and the Facebook preview go to the not-found page. "
+                          "Rename the folder to %s, or change those links to "
+                          "keepsakes/%s/." % (slug, ", ".join(wrong), wrong[0], slug))
         if not AUDIO_FIRST.search(page):
             print("  %-34s older layout, left as is" % slug)
             continue
